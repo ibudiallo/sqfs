@@ -1,0 +1,16 @@
+SQLFS
+Query your file system using SQL
+
+Example 1:
+    > sqlfs "SELECT * FROM ~/ WHERE extension = 'sh'
+
+Columns available:
+    owner       - file group
+    group       - file group owner
+    filesize    - File size in bytes
+    createdt    - file creation time in seconds
+    lastmod     - last modified date in seconds
+    name        - file name
+    extension   - file extension
+    path        - file path
+    *           - All fields

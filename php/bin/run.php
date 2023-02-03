@@ -4,9 +4,17 @@ use Parser\SQLParser;
 
 include __DIR__."/../init.php";
 
+// $input = "SELECT name, extension, group, filesize, owner FROM ~/ WHERE extension = 'sh'";
 
-$input = "SELECT * FROM ~/, .";
+if ($argc !== 2) {
+    show_manual();
+    exit(1);
+}
+
+$input = trim($argv[1]);
 
 $parser = new SQLParser($input);
 
-$parser->parse();
+$query = $parser->parse();
+
+$query->execute();
