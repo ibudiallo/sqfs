@@ -2,7 +2,14 @@
 
 namespace Parser;
 
-use Exception;
+require_once("Field.php");
+require_once("Query.php");
+require_once("Display.php");
+require_once("File.php");
+require_once("Path.php");
+require_once("Condition.php");
+
+use \Exception;
 
 class SQLParser {
 
@@ -18,6 +25,7 @@ class SQLParser {
 
     private int $size = 0;
     private int $pos = 0;
+    
     public function __construct(
         private string $input,
     ) {
@@ -103,7 +111,7 @@ class SQLParser {
         
         $this->consumeWhitespace();
         if ($this->eof()) {
-            return new Query($cmd, $fields, $paths, null);
+            return new Query($cmd, $fields, $paths, []);
         }
         $conditions = $this->parseConditions();
         return new Query($cmd, $fields, $paths, $conditions);
@@ -143,16 +151,6 @@ class SQLParser {
                 break;
         }
         throw new \Exception("unknown field name");
-    }
-
-    private function parseAttrValue() {
-        $openquote = $this->consumeChar();
-        $this->assertNot($openquote === '"' || $openquote === "'", "missing opening quote");
-        $value = $this->consumeWhile(function($c) use ($openquote) {
-            return $c !== $openquote;
-        });
-        $this->assertNot($this->consumeChar() === $openquote, "missing closing quote");
-        return $value;
     }
 
     private function parsePaths() {
@@ -196,7 +194,7 @@ class SQLParser {
         $this->consumeWhitespace();
 
         $seps = ["=", "!", "<", ">", " "];
-        $ops = ["=", "!", "<", ">", "LIKE"];
+        $ops = ["=", "!", "!=", "<", "=<", ">", ">=", "LIKE", ""];
         $conditions = [];
         while(true) {
             if ($this->eof()) {
@@ -276,213 +274,4 @@ class SQLParser {
         }
     }
 
-}
-
-class Field  {
-
-    public function __construct(private string $name) {}
-
-    public function getName() {
-        return $this->name;
-    }
-
-}
-
-
-class Query {
-
-    public function __construct(
-        private string $name,
-        private $fields,
-        private $paths,
-        private $condition,
-    )
-    { }
-
-    public function execute() {
-        $paths = [];
-        foreach($this->paths as $p) {
-            $paths[] = $p->resolve();
-        }
-        echo "Getting files from folders ".implode(", ", $paths)." \n";
-        $files = [];
-        foreach($paths as $p) {
-            $fh = opendir($p);
-            if(!isset($files[$p])) {
-                $files[$p] = [];
-            }
-            while(false !== ($entry = readdir($fh))) {
-                if ($entry === "." || $entry === "..") {
-                    continue;
-                }
-                $files[$p][] = $this->provisionFile($entry, $p);
-            }
-        };
-        $filteredFiles = $this->filter($files, $this->condition);
-        $dsp = new Display($this->fields, $filteredFiles);
-        $dsp->print();
-    }
-
-    private function provisionFile($entry, $path) {
-        return new File($entry, $path);
-    }
-
-    public function filter($folders, $condition) {
-        $fs = [];
-        $c = $condition[0];
-        foreach($folders as $folder) {
-            foreach($folder as $file) {
-                if ($file->filter($c)) {
-                    $fs[] = $file;
-                }
-            }
-        }
-        return $fs;
-    }
-}
-
-class File {
-    private $extension;
-    private $lastmod;
-    private $createdt;
-    private $owner;
-    private $group;
-    private $filesize;
-
-    public function __construct(
-        private $name, private $path
-    ) {
-        $fullpath = implode("/", [$path, $name]);
-        $this->createdt = date("Y-m-d H:i:s", (int) (filectime($fullpath)));
-        $this->lastmod = date("Y-m-d H:i:s", (int) (filemtime($fullpath)));
-        $this->owner = posix_getpwuid(fileowner($fullpath))["name"];
-        $this->group = posix_getpwuid(filegroup($fullpath))["name"];
-        $this->filesize = filesize($fullpath);
-        $parts = explode(".", $name);
-        $this->extension = end($parts);
-    }
-
-    public function filter($criteria) {
-        $field = $this->{$criteria->getField()};
-        switch($criteria->getOperator()) {
-            case "=":
-                if ($field === $criteria->getValue()) {
-                    return true;
-                }
-                break;
-        }
-    }
-
-    public function getField($field) {
-        return $this->$field;
-    }
-}
-
-class Display {
-
-    private $displayName = [
-        "path" => "Path",
-        "lastmod" => "Last Mod",
-        "createdt" => "Created",
-        "owner" => "Owner",
-        "group" => "Group",
-        "name" => "Name",
-        "extension" => "Ext.",
-        "filesize" => "Size"
-    ];
-
-    public function __construct(
-        private $fields,
-        private $files
-    ) { }
-    
-    public function print() {
-        $fields = [];
-        foreach($this->fields as $f) {
-            switch($f->getName()) {
-                case "*":
-                    $all = [
-                        "path", "lastmod", "createdt", "owner",
-                        "group", "name", "extension",
-                    ];
-                    $fields = array_merge($fields, $all);
-                    break;
-                default:
-                    $fields[] = $f->getName();
-                    break;
-            }
-        }
-        
-        $size = [];
-        foreach($fields as $val) {
-            $size[$val] = 10;
-        }
-        foreach($this->files as $file) {
-            foreach($fields as $val) {
-                $size[$val] = max($size[$val], strlen($file->getField($val))+1);
-            }
-        }
-        $title = [];
-        foreach($fields as $val) {
-            $title[] = str_pad($this->displayName[$val], $size[$val]);
-        }
-        // display titles
-        echo implode(" ", $title)."\n";
-
-        // display rows
-        $rows = [];
-        foreach($this->files as $file) {
-            $col = [];
-            foreach($fields as $val) {
-                $col[] = str_pad($file->getField($val), $size[$val]);
-            }
-            $rows[] = implode(" ", $col);
-        }
-        echo implode("\n", $rows)."\n";
-        // print_r($size);
-    }
-
-    private function printFolder($files) {
-        // print_r($files);
-    }
-}
-
-class Path {
-    public function __construct(
-        private string $path
-    ){ }
-
-    public function getPath() {
-        return $this->path;
-    }
-
-    public function resolve() {
-        $p = $this->path;
-        if(substr($p, 0, 2) === "~/") {
-            $p = "/home/".get_current_user()."/". substr($p, 2, );
-        }
-        return realpath($p);
-    }
-}
-
-class Condition {
-
-    public function __construct(
-        private $field,
-        private $operator,
-        private $value,
-    ) {}
-
-    public function getField() {
-        return $this->field;
-    }
-
-    public function getOperator(){
-        return $this->operator;
-    }
-
-    public function getValue(){
-        return $this->value;
-    }
-    
 }
