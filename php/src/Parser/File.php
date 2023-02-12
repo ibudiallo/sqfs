@@ -2,6 +2,8 @@
 
 namespace Parser;
 
+use Exception;
+
 class File {
     private $name;
     private $path;
@@ -57,6 +59,11 @@ class File {
             case "LIKE":
                     return $this->wildCardSearch($field, $criteria->getValue());
                 break;
+            case "<=":
+            case "<":
+            case ">=":
+            case ">":
+                return $this->compare($field, $criteria->getValue(), $criteria->getOperator());
         }
         return false;
     }
@@ -71,5 +78,10 @@ class File {
         $match = null;
         preg_match($regex, $value, $match);
         return count($match) > 0;
+    }
+
+    private function compare($left, $right, $operator) {
+        // TODO
+        throw new Exception("compare not implemented yet");
     }
 }
