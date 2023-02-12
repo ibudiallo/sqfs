@@ -20,12 +20,12 @@ class SQLParser {
     const FIELDS = [
         "permission", "links", "owner", "group", 
         "filesize", "lastmod", "name", "extension",
-        "path", "*",
+        "path", "type", "*",
     ];
 
     private int $size = 0;
     private int $pos = 0;
-    
+
     public function __construct(
         private string $input,
     ) {

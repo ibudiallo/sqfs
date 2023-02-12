@@ -13,7 +13,8 @@ class Display {
         "group" => "Group",
         "name" => "Name",
         "extension" => "Ext.",
-        "filesize" => "Size"
+        "filesize" => "Size",
+        "type" => "Type",
     ];
 
     public function __construct(

@@ -12,6 +12,8 @@ class File {
     private $group;
     private $filesize;
 
+    private $type;
+
     const VALID_FIELDS = [
         "name", "path", "extension", "lastmod",
         "createdt", "owner", "group", "filesize",
@@ -29,6 +31,7 @@ class File {
         $this->owner = posix_getpwuid(fileowner($fullpath))["name"];
         $this->group = posix_getpwuid(filegroup($fullpath))["name"];
         $this->filesize = filesize($fullpath);
+        $this->type = is_dir($fullpath) ? "folder" : "file";
         $parts = explode(".", $name);
         $this->extension = end($parts);
     }
