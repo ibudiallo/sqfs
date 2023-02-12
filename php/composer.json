@@ -1,0 +1,15 @@
+{
+    "name": "ibrahim/sqfs",
+    "description": "SQL for your filesystem in PHP",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Parser\\": "src/Parser"
+        }
+    },
+    "require": {
+        "php": ">=7.3"
+    }
+    
+}

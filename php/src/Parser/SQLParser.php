@@ -2,13 +2,6 @@
 
 namespace Parser;
 
-require_once("Field.php");
-require_once("Query.php");
-require_once("Display.php");
-require_once("File.php");
-require_once("Path.php");
-require_once("Condition.php");
-
 use \Exception;
 
 class SQLParser {
@@ -83,7 +76,7 @@ class SQLParser {
         });
         $upper = strtoupper($fullname);
         if (!in_array($upper, self::COMMANDS)) {
-            throw new \Exception("invalid command \"$upper\"", 1);
+            throw new Exception("invalid command \"$upper\"", 1);
         }
         return $upper;
     }
@@ -266,12 +259,6 @@ class SQLParser {
             $nodes[] = $this->parseNode();
         }
         return $nodes[0];
-    }
-
-    private function assertNot($bool, $msg = "error") {
-        if(!$bool) {
-            throw new \Exception($msg);
-        }
     }
 
 }
