@@ -32,7 +32,6 @@ class Query {
         };
         $filteredFiles = $this->filter($files, $this->condition);
         $dsp = new Display($this->fields, $filteredFiles);
-        
         $dsp->print();
     }
 

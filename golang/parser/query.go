@@ -1,11 +1,16 @@
 package parser
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 type Query struct {
@@ -14,6 +19,8 @@ type Query struct {
 	paths      []string
 	conditions []Condition
 }
+
+type QueryFileInfo map[string]*FileInfo
 
 func (q *Query) Execute() ([]byte, error) {
 	var paths []string
@@ -25,38 +32,62 @@ func (q *Query) Execute() ([]byte, error) {
 		paths = append(paths, path)
 	}
 
+	Files := make(QueryFileInfo)
 	for _, p := range paths {
 		files, err := ioutil.ReadDir(p)
 		if err != nil {
-			return nil, fmt.Errorf("walk dir: %w", err)
+			return nil, fmt.Errorf("read dir: %w", err)
 		}
 		for _, f := range files {
-			fmt.Println(f.Name())
+			path := p + "/" + f.Name()
+			info, err := os.Stat(path)
+			if err != nil {
+				return nil, fmt.Errorf("file status: %w", err)
+			}
+			var UID string
+			var GID string
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				UID = strconv.FormatUint(uint64(stat.Uid), 10)
+				GID = strconv.FormatUint(uint64(stat.Gid), 10)
+			}
+			userName, _ := user.LookupId(UID)
+			userGroup, _ := user.LookupGroupId(GID)
+			ext := filepath.Ext(path)
+			if len(ext) > 0 && ext[0] == '.' {
+				ext = ext[1:]
+			}
+			Files[path] = &FileInfo{
+				dir:       f.IsDir(),
+				Name:      f.Name(),
+				Path:      p + "/" + f.Name(),
+				Extension: ext,
+				Lastmod:   f.ModTime(),
+				Createdt:  f.ModTime(), // incorrect
+				Owner:     userName.Username,
+				Group:     userGroup.Name,
+				Filesize:  int(f.Size()),
+			}
 		}
-
 	}
-	/*
-			$paths = [];
-		        foreach($this->paths as $p) {
-		            $paths[] = $p->resolve();
-		        }
-		        echo "Getting files from folders ".implode(", ", $paths)." \n";
-		        $files = [];
-		        foreach($paths as $p) {
-		            $fh = opendir($p);
-		            if(!isset($files[$p])) {
-		                $files[$p] = [];
-		            }
-		            while(false !== ($entry = readdir($fh))) {
-		                if ($entry === "." || $entry === "..") {
-		                    continue;
-		                }
-		                $files[$p][] = $this->provisionFile($entry, $p);
-		            }
-		        };
-		        $filteredFiles = $this->filter($files, $this->condition);
-	*/
-	return nil, fmt.Errorf("Not Implemented")
+	results, err := q.filter(Files, q.conditions)
+	if err != nil {
+		return nil, fmt.Errorf("filter files: %w", err)
+	}
+	byt, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("marshal results: %w", err)
+	}
+	return byt, nil
+}
+
+func (q *Query) filter(qf QueryFileInfo, conds []Condition) (QueryFileInfo, error) {
+	results := make(QueryFileInfo)
+	for key, file := range qf {
+		if file.filter(conds) {
+			results[key] = file
+		}
+	}
+	return results, nil
 }
 
 func (q Query) String() string {
@@ -93,4 +124,64 @@ func resolvePath(mainPath string) (string, error) {
 		return "", fmt.Errorf("check file exists: %w", err)
 	}
 	return fullPath, nil
+}
+
+type FileInfo struct {
+	dir       bool
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	Extension string    `json:"extension"`
+	Lastmod   time.Time `json:"lastmod"`
+	Createdt  time.Time `json:"createdt"`
+	Owner     string    `json:"owner"`
+	Group     string    `json:"group"`
+	Filesize  int       `json:"filesize"`
+}
+
+func (f *FileInfo) filter(conds []Condition) bool {
+	for _, cond := range conds {
+		var left string
+		valueType := "string"
+		switch cond.field {
+		case "name":
+			left = f.Name
+			break
+		case "path":
+			left = f.Path
+			break
+		case "extension":
+			left = f.Extension
+			break
+		case "owner":
+			left = f.Owner
+			break
+		case "group":
+			left = f.Group
+			break
+		case "lastmod":
+			left = f.Lastmod.String()
+			valueType = "date"
+			break
+		case "createdt":
+			left = f.Createdt.String()
+			valueType = "date"
+			break
+		case "filesize":
+			left = fmt.Sprintf("%d", f.Filesize)
+			valueType = "number"
+			break
+		}
+		if !evaluate(left, cond.value, cond.operator, valueType) {
+			return false
+		}
+	}
+	return true
+}
+
+func evaluate(left, right, operator, valType string) bool {
+	switch operator {
+	case "=":
+		return left == right
+	}
+	return false
 }
