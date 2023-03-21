@@ -20,7 +20,7 @@ var FIELDS = map[string]int{
 	"links":      1,
 	"owner":      1,
 	"group":      1,
-	"filesize":   1,
+	"size":       1,
 	"lastmod":    1,
 	"name":       1,
 	"extension":  1,
@@ -207,7 +207,7 @@ func (p *Parser) parseFieldName() (string, error) {
 			return (c != "\"" && c != " " && c != ",") || p.eof()
 		})
 		if _, ok := FIELDS[name]; !ok {
-			return "", fmt.Errorf("unknow field name: \"%s\"", name)
+			return "", fmt.Errorf("unknown field name: \"%s\"", name)
 		}
 		return name, nil
 	}

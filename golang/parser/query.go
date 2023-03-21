@@ -65,7 +65,7 @@ func (q *Query) Execute() ([]byte, error) {
 				Createdt:  f.ModTime(), // incorrect
 				Owner:     userName.Username,
 				Group:     userGroup.Name,
-				Filesize:  int(f.Size()),
+				Size:      int(f.Size()),
 			}
 		}
 	}
@@ -77,6 +77,7 @@ func (q *Query) Execute() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal results: %w", err)
 	}
+	fmt.Printf("%s\n\n", string(byt))
 	return byt, nil
 }
 
@@ -135,7 +136,7 @@ type FileInfo struct {
 	Createdt  time.Time `json:"createdt"`
 	Owner     string    `json:"owner"`
 	Group     string    `json:"group"`
-	Filesize  int       `json:"filesize"`
+	Size      int       `json:"size"`
 }
 
 func (f *FileInfo) filter(conds []Condition) bool {
@@ -166,8 +167,8 @@ func (f *FileInfo) filter(conds []Condition) bool {
 			left = f.Createdt.String()
 			valueType = "date"
 			break
-		case "filesize":
-			left = fmt.Sprintf("%d", f.Filesize)
+		case "size":
+			left = fmt.Sprintf("%d", f.Size)
 			valueType = "number"
 			break
 		}
@@ -182,6 +183,33 @@ func evaluate(left, right, operator, valType string) bool {
 	switch operator {
 	case "=":
 		return left == right
+	case ">", ">=":
+		leftNum, err := strconv.ParseInt(left, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		rightNum, err := strconv.ParseInt(right, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		if operator == ">" {
+			return leftNum > rightNum
+		}
+		return leftNum >= rightNum
+	case "<":
+		leftNum, err := strconv.ParseInt(left, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		rightNum, err := strconv.ParseInt(right, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		if operator == "<" {
+			return leftNum < rightNum
+		}
+		return leftNum <= rightNum
+	default:
+		panic(fmt.Sprintf("unknown operator \"%s\"", operator))
 	}
-	return false
 }

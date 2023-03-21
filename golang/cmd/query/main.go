@@ -19,7 +19,7 @@ Example 1:
 Columns available:
     owner       - file group
     group       - file group owner
-    filesize    - File size in bytes
+    size    - File size in bytes
     createdt    - file creation time in seconds
     lastmod     - last modified date in seconds
     name        - file name
